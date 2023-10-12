@@ -27,6 +27,12 @@ app.use(function (req, res, next) {
 })
 
 
+app.get("/", (req, res) => {
+  res.send("api running at port 4043");
+})
+
+
+
 app.listen(PORT, () => {
 
   console.log(`Server is running on port ${PORT}.`);
