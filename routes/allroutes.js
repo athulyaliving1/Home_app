@@ -8,6 +8,9 @@ router.get("/services", HomeModule.Services);
 router.get("/caregivers", HomeModule.Caregivers);
 router.get("/patients", HomeModule.Patients);
 router.post("/filterreports", HomeModule.FilterData);
+router.post("/statuscolumncharts", HomeModule.StatusColcharts);
+router.post("/pyramidcharts", HomeModule.PyramidCharts);
+router.post("/hourscharts", HomeModule.getHoursCharts);
 
 //router.post("/seq",HomeModule.Seq);
 
