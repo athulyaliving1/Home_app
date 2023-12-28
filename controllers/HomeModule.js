@@ -400,6 +400,314 @@ GROUP BY master_branches.branch_name, duration_range;`;
   }
 };
 
+const getCurrentDateSummary = async (req, res, next) => {
+  try {
+    const { from_date, to_date, branch_id } = req.query;
+
+    console.log(req.query);
+
+    if (!from_date || !to_date) {
+      return res
+        .status(400)
+        .json({ error: "Please provide both start and end dates" });
+    }
+
+    const default_branches = await new Promise((resolve, reject) => {
+      db.query("select distinct id from master_branches", (err, results) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(results);
+          // console.log("branches", results);
+        }
+      });
+    });
+    all_branches = default_branches.map((tt) => tt.id);
+
+    const get_Accepted_Not_Clock_In_Query = `
+    SELECT COUNT(*) as Accepted_Not_Clockin 
+    FROM case_schedules
+    WHERE schedule_date = CURRENT_DATE 
+      AND case_status = 'Accepted'
+      AND case_clockin_at IS NULL;
+  `;
+
+    const get_Accepted_Not_Clock_In = await new Promise((resolve, reject) => {
+      db.query(get_Accepted_Not_Clock_In_Query, (err, results) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(results);
+        }
+      });
+    });
+
+    const get_Accepted_Clock_In_Query = `SELECT COUNT(*)
+                                      as Accepted_And_Clockin 
+   FROM case_schedules
+   WHERE schedule_date = CURRENT_DATE 
+     AND case_status = 'Clocked_In'
+     AND case_clockin_at IS NOT NULL;`;
+
+    const get_Accepted_Clock_In = await new Promise((resolve, reject) => {
+      db.query(get_Accepted_Clock_In_Query, (err, results) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(results);
+        }
+      });
+    });
+
+    const get_Late_Clock_In_Query = `SELECT    
+         SUM(CASE WHEN start_time > case_clockin_at THEN 1 ELSE 0 END) as Late_Count,
+         COUNT(*)
+         as Accepted_And_Clockin,
+         TIMESTAMPDIFF(SECOND, start_time, case_clockin_at) AS time_difference_seconds
+         FROM case_schedules
+         WHERE schedule_date = CURRENT_DATE 
+         AND case_status = 'Clocked_In';`;
+
+    const get_Late_Clock_In = await new Promise((resolve, reject) => {
+      db.query(get_Late_Clock_In_Query, (err, results) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(results);
+        }
+      });
+    });
+
+    const get_ClockIN_And_Not_Clockout_Query = `SELECT COUNT(*) as Clockin_And_NotClockout
+    FROM case_schedules
+    WHERE schedule_date = CURRENT_DATE 
+     AND case_status = 'Clocked_In'
+     AND clockout_loc IS  NULL;`;
+
+    const get_ClockIN_And_Not_Clockout = await new Promise(
+      (resolve, reject) => {
+        db.query(get_ClockIN_And_Not_Clockout_Query, (err, results) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(results);
+          }
+        });
+      }
+    );
+
+    const get_Unallocated_Query = `SELECT COUNT(*) as unallocated
+    FROM case_schedules
+    WHERE schedule_date = CURRENT_DATE 
+      AND case_status = 'unknown'
+      AND case_clockin_at IS NULL;`;
+
+    const get_Unallocated = await new Promise((resolve, reject) => {
+      db.query(get_Unallocated_Query, (err, results) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(results);
+        }
+      });
+    });
+
+    const get_Active_Services = `SELECT COUNT(*) as Active_services
+    FROM case_schedules
+    WHERE schedule_date = CURRENT_DATE 
+    AND status = 'Pending';`;
+
+    const get_Active_Services_Count = await new Promise((resolve, reject) => {
+      db.query(get_Active_Services, (err, results) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(results);
+        }
+      });
+    });
+
+
+
+
+    const result_json = {
+      Accepted_Not_Clockin: get_Accepted_Not_Clock_In[0].Accepted_Not_Clockin,
+      Accepted_And_Clockin: get_Accepted_Clock_In[0].Accepted_And_Clockin,
+      Late_Count: get_Late_Clock_In[0].Late_Count,
+      ClockIn_NotClockOut:
+        get_ClockIN_And_Not_Clockout[0].Clockin_And_NotClockout,
+      Unallocated: get_Unallocated[0].unallocated,
+      Active_Services: get_Active_Services_Count[0].Active_services,
+    };
+
+    res.status(200).json({ success: true, data: result_json });
+  } catch (error) {
+    res.status(500).json({ success: false, data: error });
+  }
+};
+
+getLocationWiseCount = async (req, res) => {
+  console.log("getLocationWiseCount Api Request");
+  try {
+    const locationwisechart = await new Promise((resolve, reject) => {
+      db.query(
+        `SELECT 
+        master_branches.branch_name, 
+        DATE_FORMAT(schedule_date, '%Y-%m-%d') AS formatted_date, 
+        COUNT(*) AS schedule_count
+    FROM 
+        case_schedules 
+    JOIN 
+        master_branches ON case_schedules.branch_id = master_branches.id
+    WHERE 
+        schedule_date >= CURDATE() - INTERVAL 30 DAY AND case_schedules.status = 'Pending'
+    GROUP BY 
+        master_branches.branch_name, 
+        formatted_date 
+    ORDER BY 
+        formatted_date, 
+        master_branches.branch_name;`,
+        (err, results) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(results);
+          }
+        }
+      );
+    });
+
+    return res.status(200).json({ success: true, data: locationwisechart });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+getStatusWiseStackCharts = async (req, res) => {
+  console.log(req.query);
+  console.log("getStatusWiseStackCharts Api Request");
+
+  try {
+    const statuswisechart = await new Promise((resolve, reject) => {
+      db.query(
+        `SELECT
+        DATE_FORMAT(schedule_date, '%Y-%m-%d') AS schedule_date,
+        COUNT(*) as Total_Cases,
+        SUM(CASE WHEN case_status = 'Accepted' AND case_clockin_at IS NULL THEN 1 ELSE 0 END) as Accepted_Not_Clockin,
+        SUM(CASE WHEN case_status = 'Clocked_In' THEN 1 ELSE 0 END) as Accepted_And_Clockin,
+        SUM(CASE WHEN case_status = 'Clocked_In' AND case_clockin_at IS NOT NULL THEN 1 ELSE 0 END) as Clockin_And_NotClockout,
+        SUM(CASE WHEN case_status = 'unknown' AND case_clockin_at IS NULL THEN 1 ELSE 0 END) as Unallocated,
+        SUM(CASE WHEN status = 'Pending' THEN 1 ELSE 0 END) as Active_Services
+    FROM case_schedules
+    WHERE schedule_date BETWEEN CURRENT_DATE - INTERVAL 6 DAY AND CURRENT_DATE
+    GROUP BY schedule_date
+    ORDER BY schedule_date DESC;`,
+        (err, results) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(results);
+          }
+        }
+      );
+    });
+
+    return res.status(200).json({ success: true, data: statuswisechart });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+getStausWiseLocationWiseCount = async (req, res) => {
+  console.log(req.query);
+  console.log("getStausWiseLocationWiseCount Api Request");
+
+  try {
+    const locationwisechart = await new Promise((resolve, reject) => {
+      db.query(
+        `SELECT
+        master_branches.branch_name,
+        DATE_FORMAT(schedule_date, '%Y-%m-%d') AS schedule_date,
+       COUNT(*) as Total_Cases,
+       SUM(CASE WHEN case_status = 'Accepted' AND case_clockin_at IS NULL THEN 1 ELSE 0 END) as Accepted_Not_Clockin,
+       SUM(CASE WHEN case_status = 'Clocked_In' THEN 1 ELSE 0 END) as Accepted_And_Clockin,
+       SUM(CASE WHEN case_status = 'Clocked_In' AND case_clockin_at IS NOT NULL THEN 1 ELSE 0 END) as Clockin_And_NotClockout,
+       SUM(CASE WHEN case_status = 'unknown' AND case_clockin_at IS NULL THEN 1 ELSE 0 END) as Unallocated,
+       SUM(CASE WHEN case_status = 'Pending' THEN 1 ELSE 0 END) as Active_Services
+   FROM case_schedules
+   JOIN master_branches ON case_schedules.branch_id = master_branches.id
+   WHERE schedule_date  = CURRENT_DATE 
+   GROUP BY schedule_date, master_branches.branch_name
+   ORDER BY schedule_date DESC;`,
+        (err, results) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(results);
+          }
+        }
+      );
+    });
+
+    return res.status(200).json({ success: true, data: locationwisechart });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+getServiceType_Total = async (req, res) => {
+  console.log(req.query);
+  console.log("getServiceType Api Request");
+
+  try {
+    const serviceType = await new Promise((resolve, reject) => {
+      db.query(
+        `SELECT
+        service_type,
+        COUNT(patient_id) AS patient_count,
+        SUM(total_services) AS total_services,
+        SUM(CASE WHEN total_services > 1 THEN 1 ELSE 0 END) AS long_term_services,
+        SUM(CASE WHEN total_services <= 1 THEN 1 ELSE 0 END) AS short_term_services
+    FROM (
+        SELECT
+            patient_id,
+            CASE
+                WHEN COUNT(DISTINCT schedule_id) > 1 THEN 'Long Term Service'
+                ELSE 'Short Term Service'
+            END AS service_type,
+            COUNT(DISTINCT schedule_id) AS total_services
+        FROM
+            case_schedules
+        WHERE
+            patient_id IS NOT NULL
+            AND (
+                (YEAR(schedule_date) = YEAR(CURDATE()) AND MONTH(schedule_date) = MONTH(CURDATE()))
+               
+            )
+        GROUP BY
+            patient_id
+    ) AS subquery
+    GROUP BY
+        service_type
+    ORDER BY
+        service_type DESC;
+        `,
+        (err, results) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(results);
+          }
+        }
+      );
+    });
+
+    return res.status(200).json({ success: true, data: serviceType });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
 module.exports = {
   Home,
   FilterData,
@@ -410,4 +718,9 @@ module.exports = {
   StatusColcharts,
   PyramidCharts,
   getHoursCharts,
+  getCurrentDateSummary,
+  getLocationWiseCount,
+  getStatusWiseStackCharts,
+  getStausWiseLocationWiseCount,
+  getServiceType_Total
 };
