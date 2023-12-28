@@ -18,7 +18,7 @@ app.use(cors());
 
 const routes = require("./routes/allroutes");
 
-const PORT =  4046;
+const PORT = 4046;
 app.use("/", routes)
 
 
