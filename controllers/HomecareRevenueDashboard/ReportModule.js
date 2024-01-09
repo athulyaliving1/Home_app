@@ -18,8 +18,6 @@ const getSummary = async (req, res, next) => {
     try {
         const { from_date, to_date, branch_id } = req.query;
 
-        // console.log(req.query);
-
         if (!from_date || !to_date) {
             return res
                 .status(400)
@@ -27,8 +25,9 @@ const getSummary = async (req, res, next) => {
         }
 
         const default_branches = await new Promise((resolve, reject) => {
-            db.query("select distinct id from master_branches", (err, results) => {
+            db.query("SELECT DISTINCT id FROM master_branches", (err, results) => {
                 if (err) {
+                    console.error("Error fetching default branches:", err);
                     reject(err);
                 } else {
                     resolve(results);
@@ -36,31 +35,28 @@ const getSummary = async (req, res, next) => {
                 }
             });
         });
-        all_branches = default_branches.map((tt) => tt.id);
 
-        // console.log("allbranches", all_branches);
+        const all_branches = default_branches.map((tt) => tt.id);
 
-        const filter_branches = !branch_id ? all_branches : branch_id;
+        console.log("all branches:", all_branches);
 
-        // console.log("branchess..:;" + filter_branches);
+        const filter_branches = !(branch_id == undefined) ? all_branches : branch_id;
+        // const filter_branches = !branch_id ? all_branches : branch_id;
 
-        //     const query = `
-        //     SELECT  COALESCE(SUM(case_invoices.total_amount), 0) as total_invoice_amount
-        //     FROM case_invoices 
-        //     WHERE case_invoices.invoice_date >= ? AND case_invoices.invoice_date <= ? and status!='Cancelled'
-        //    and case_invoices.branch_id in (?)`;
+        console.log("filtered branches:", filter_branches);
 
-        const query = `SELECT 
-        COALESCE(SUM(amount), 0) as total_invoice_amount
-    FROM 
-        case_schedules 
-    WHERE 
-        case_schedules.schedule_date BETWEEN ? AND ? AND 
-        branch_id IN (?) AND case_schedules.invoice_status = 'Raised'`;
+        const query = `
+            SELECT 
+                COALESCE(SUM(amount), 0) as total_invoice_amount
+            FROM 
+                case_schedules 
+            WHERE 
+                case_schedules.schedule_date BETWEEN ? AND ? AND 
+                branch_id IN (?) AND case_schedules.invoice_status = 'Raised'`;
 
 
 
-
+        console.log(query, [from_date, to_date, filter_branches]);
         const invoice_results = await new Promise((resolve, reject) => {
             db.query(query, [from_date, to_date, filter_branches], (err, results) => {
                 if (err) {
@@ -70,7 +66,7 @@ const getSummary = async (req, res, next) => {
                 }
             });
         });
-        //console.log(results);
+        // console.log(results);
 
         const get_today_invoice_id_query =
             "select distinct id from case_invoices where invoice_date between ? and ? and branch_id in (?)";
