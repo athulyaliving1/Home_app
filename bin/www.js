@@ -3,7 +3,8 @@
 /**
  * Module dependencies.
  */
-
+const express = require('express');
+const app = express();
 var app = require('../app');
 var debug = require('debug')('hc_staff_allocation-server:server');
 var http = require('http');
