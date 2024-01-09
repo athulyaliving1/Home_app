@@ -18,7 +18,7 @@ app.use(cors());
 
 const routes = require("./routes/allroutes");
 
-const PORT = 4046;
+
 app.use("/", routes)
 
 
@@ -33,9 +33,9 @@ app.get("/", (req, res) => {
 
 
 
-app.listen(PORT, () => {
+app.listen(port, () => {
 
-  console.log(`Server is running on port ${PORT}.`);
+  console.log(`Server is running on port ${port}.`);
 });
 
 
