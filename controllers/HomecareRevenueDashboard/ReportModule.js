@@ -51,12 +51,13 @@ const getSummary = async (req, res, next) => {
         //    and case_invoices.branch_id in (?)`;
 
         const query = `SELECT 
-           COALESCE(SUM(amount), 0) as total_invoice_amount
-       FROM 
-           case_schedules 
-       WHERE 
-           case_schedules.schedule_date BETWEEN >= ?  AND <= ?  AND 
-           branch_id =IN  (?) AND case_schedules.invoice_status = 'Raised';`
+        COALESCE(SUM(amount), 0) as total_invoice_amount
+    FROM 
+        case_schedules 
+    WHERE 
+        case_schedules.schedule_date BETWEEN ? AND ? AND 
+        branch_id IN (?) AND case_schedules.invoice_status = 'Raised'`;
+
 
 
 
