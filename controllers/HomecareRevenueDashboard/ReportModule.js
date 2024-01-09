@@ -44,11 +44,21 @@ const getSummary = async (req, res, next) => {
 
         // console.log("branchess..:;" + filter_branches);
 
-        const query = `
-        SELECT  COALESCE(SUM(case_invoices.total_amount), 0) as total_invoice_amount
-        FROM case_invoices 
-        WHERE case_invoices.invoice_date >= ? AND case_invoices.invoice_date <= ? and status!='Cancelled'
-       and case_invoices.branch_id in (?)`;
+        //     const query = `
+        //     SELECT  COALESCE(SUM(case_invoices.total_amount), 0) as total_invoice_amount
+        //     FROM case_invoices 
+        //     WHERE case_invoices.invoice_date >= ? AND case_invoices.invoice_date <= ? and status!='Cancelled'
+        //    and case_invoices.branch_id in (?)`;
+
+        const query = `SELECT 
+           COALESCE(SUM(amount), 0) as total_invoice_amount
+       FROM 
+           case_schedules 
+       WHERE 
+           case_schedules.schedule_date BETWEEN >= ?  AND <= ?  AND 
+           branch_id =IN  (?) AND case_schedules.invoice_status = 'Raised';`
+
+
 
         const invoice_results = await new Promise((resolve, reject) => {
             db.query(query, [from_date, to_date, filter_branches], (err, results) => {
@@ -793,7 +803,34 @@ const getreceipts = async (req, res, next) => {
         const all_today_invoice_ids = today_invoice_ids.map((tt) => tt.id);
         //const receipts_created_query="select * from case_invoices join case_receipts on case_invoices.id=case_receipts.item_id where case_receipts.item_id in (?) and case_invoices.invoice_date >=? and case_invoices.invoice_date<=? and case_invoices.branch_id in (?)"
         const receipts_created_query =
-            "select master_branches.branch_name,patients.patient_id,patients.first_name,case_invoices.invoice_no,date_format(case_invoices.invoice_date,'%Y-%m-%d') as dates,case_invoices.total_amount,case_invoices.amount_paid,case_invoices.status from case_invoices join master_branches on case_invoices.branch_id=master_branches.id join patients on case_invoices.patient_id=patients.id where case_invoices.id in (select distinct item_id  from case_receipts where date(created_at) between ? and ? and branch_id in (?) and item_id in (?)) and case_invoices.status!='Cancelled'";
+            `SELECT
+            master_branches.branch_name,
+            patients.patient_id,
+            patients.first_name,
+            case_invoices.invoice_no,
+            DATE_FORMAT(case_invoices.invoice_date, '%Y-%m-%d') AS dates,
+            ROUND(case_invoices.total_amount * 0.09) AS gst_amount,
+            ROUND(case_invoices.total_amount * 0.09) AS cgst_amount,
+            case_invoices.total_amount,
+            case_invoices.amount_paid,
+            case_invoices.status
+          FROM
+            case_invoices
+          JOIN
+            master_branches ON case_invoices.branch_id = master_branches.id
+          JOIN
+            patients ON case_invoices.patient_id = patients.id
+          WHERE
+            case_invoices.id IN (
+              SELECT DISTINCT item_id
+              FROM case_receipts
+              WHERE
+                DATE(created_at) BETWEEN ? AND ?
+                AND branch_id IN (?)
+                AND item_id IN (?)
+            )
+            AND case_invoices.status != 'Cancelled';
+          `;
         const today_receipts_created = await new Promise((resolve, reject) => {
             db.query(
                 receipts_created_query,
@@ -808,7 +845,7 @@ const getreceipts = async (req, res, next) => {
             );
         });
 
-        // console.log(today_receipts_created);
+        console.table(today_receipts_created);
 
         res.status(200).json({ success: true, data: today_receipts_created });
     } catch (error) {

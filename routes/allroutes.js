@@ -18,6 +18,7 @@ router.post("/locationsummary", HomeModule.getLocationWiseCount);
 router.post("/statuswisecharts", HomeModule.getStatusWiseStackCharts);
 router.post("/statuswiselocationwisecharts", HomeModule.getStausWiseLocationWiseCount);
 router.post("/servicetypetotal", HomeModule.getServiceType_Total);
+router.post("/servicesdrilldown", HomeModule.getServicesDrillDown);
 
 //router.post("/seq",HomeModule.Seq);
 
@@ -54,14 +55,6 @@ router.get("/getmastercategories", BranchModule.masterCategories);
 router.post("/getservicecategorybranch", ReportModule_1.getServiceCategoryPieChart);
 router.post("/getunapprovedfunds", ReportModule_1.getUnapprovedFunds);
 router.post("/getb2bfunds", ReportModule_1.getb2bfunds);
-
-
-
-
-
-
-
-
 
 
 

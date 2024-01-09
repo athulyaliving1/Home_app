@@ -400,6 +400,8 @@ GROUP BY master_branches.branch_name, duration_range;`;
   }
 };
 
+
+
 const getCurrentDateSummary = async (req, res, next) => {
   try {
     const { from_date, to_date, branch_id } = req.query;
@@ -528,6 +530,44 @@ const getCurrentDateSummary = async (req, res, next) => {
     });
 
 
+    const get_Short_term_and_Long_term = `SELECT 
+   master_services.service_category_type,
+   COALESCE(COUNT(case_schedules.id), 0) AS service_count
+FROM 
+   master_services
+LEFT JOIN 
+   case_schedules ON master_services.id = case_schedules.service_required AND case_schedules.status = 'Pending' AND case_schedules.schedule_date = CURRENT_DATE
+GROUP BY 
+   master_services.service_category_type;`;
+
+    const get_Short_term_and_Long_term_count = await new Promise((resolve, reject) => {
+      db.query(get_Short_term_and_Long_term, (err, results) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(results);
+        }
+      });
+    })
+
+
+
+    const get_Active_Client_Query = `select COUNT(*) AS COUNT from case_schedules where case_schedules.schedule_date = CURRENT_DATE AND case_schedules.status ='Pending';`
+
+
+    const get_Active_Client = await new Promise((resolve, reject) => {
+      db.query(get_Active_Client_Query, (err, results) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(results);
+          console.table(results);
+        }
+      });
+
+    });
+
+
 
 
     const result_json = {
@@ -538,9 +578,13 @@ const getCurrentDateSummary = async (req, res, next) => {
         get_ClockIN_And_Not_Clockout[0].Clockin_And_NotClockout,
       Unallocated: get_Unallocated[0].unallocated,
       Active_Services: get_Active_Services_Count[0].Active_services,
+      Long_Term: get_Short_term_and_Long_term_count[1].service_count,
+      Short_Term: get_Short_term_and_Long_term_count[2].service_count,
+      Active_Client: get_Active_Client[0].COUNT
     };
 
     res.status(200).json({ success: true, data: result_json });
+    console.table(result_json);
   } catch (error) {
     res.status(500).json({ success: false, data: error });
   }
@@ -708,6 +752,66 @@ getServiceType_Total = async (req, res) => {
   }
 };
 
+
+
+getServicesDrillDown = async (req, res) => {
+
+  console.log(req.query);
+  console.log("getServicesDrill Api Request");
+
+  try {
+    const serviceTypeDrill = await new Promise((resolve, reject) => {
+      db.query(
+        `SELECT 
+        master_services.service_category_type,
+        master_service_category.category_name,
+        case_schedules.schedule_date,
+        case_schedules.service_required,
+        master_services.display_name,
+        patients.first_name,
+        master_branches.branch_name
+        
+    FROM 
+        master_service_category
+    JOIN 
+        master_services ON master_service_category.id = master_services.category_id
+    JOIN 
+        case_schedules ON master_services.id = case_schedules.service_required  
+    JOIN 
+    patients  ON case_schedules.patient_id = patients.id
+    
+    JOIN
+      master_branches ON patients.branch_id = master_branches.id
+    
+    WHERE 
+        case_schedules.status = 'Pending' AND case_schedules.schedule_date=CURRENT_DATE;`,
+        (err, results) => {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(results);
+            console.table(results);
+          }
+        }
+      );
+    });
+    return res.status(200).json({ success: true, data: serviceTypeDrill });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+
+
+}
+
+
+
+
+
+
+
+
+
+
 module.exports = {
   Home,
   FilterData,
@@ -722,5 +826,6 @@ module.exports = {
   getLocationWiseCount,
   getStatusWiseStackCharts,
   getStausWiseLocationWiseCount,
-  getServiceType_Total
+  getServiceType_Total,
+  getServicesDrillDown
 };
