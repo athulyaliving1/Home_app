@@ -1381,7 +1381,9 @@ const getb2bfunds = async (req, res) => {
             });
         });
 
-        const filter_branches = branch_id ?? default_branches;
+        // const filter_branches = branch_id ?? default_branches;
+        const filter_branches = branch_id !== null && branch_id !== undefined ? branch_id : default_branches;
+
 
         const data_query = `
       SELECT
